@@ -1,82 +1,92 @@
 # AI Customer Support Refund Agent
 
-An enterprise-grade, autonomous Customer Support AI Agent built with Next.js App Router, TypeScript, and Prisma SQLite. It features deterministic 12-rule refund policy enforcement, raw OpenAI function/tool calling orchestration, and an Admin Audit & Telemetry Dashboard for near-real-time observability.
+An enterprise-grade, autonomous Customer Support AI Agent built with Next.js App Router, TypeScript, Prisma ORM, and dual SQLite/PostgreSQL architecture. It features deterministic 12-rule refund policy enforcement, raw LLM function/tool calling orchestration (OpenAI / Gemini compatible), atomic database transaction guarantees, and an Admin Audit & Telemetry Dashboard for near-real-time observability.
+
+---
+
+## Live Links & Demo
+
+- **Live Deployment:** `https://your-deployment-url.vercel.app` *(Placeholder: Add your Vercel URL upon deployment)*
+- **Demo Video Walkthrough:** `https://loom.com/share/your-video-id` *(Placeholder: Add your Loom/YouTube video link)*
+- **Admin Dashboard:** `/admin` *(Inspect live audit logs, CRM state, and policy telemetry)*
 
 ---
 
 ## Architecture Diagram
 
 ```text
- Customer (Browser)                       Admin (Browser)
-        |                                       |
-        v                                       v
-+-------------------------------+       +-------------------------------+
-|  Next.js Customer Chat UI     |       |  Admin Telemetry Dashboard    |
-|  - Message Bubble Stream      |       |  - Real-Time Event Timeline   |
-|  - 1-Click Demo Scenarios     |       |  - 12-Rule Policy Inspector   |
-|  - Decision Cards (INR)       |       |  - CRM State Explorer         |
-+-------------------------------+       +-------------------------------+
-                |                                       ^
-                v                                       |
-    POST /api/chat                      GET /api/admin/logs
-                |                                       |
-                v                                       |
-+-------------------------------------------------------+---------------+
-|                         Next.js Backend Server                        |
-|                                                                       |
-|  +-----------------------------------------------------------------+  |
-|  |                Raw Function-Calling Agent Loop                  |  |
-|  |  - Interprets user request & selects registered tools           |  |
-|  |  - Bounded iteration loop (prevents infinite recursion)         |  |
-|  |  - OpenAI GPT-4o-mini / Deterministic Fallback Mode             |  |
-|  +-----------------------------------------------------------------+  |
-|               |                                       |               |
-|               v                                       v               |
-|   +-----------------------+              +------------------------+   |
-|   |   Backend Tool Layer  |              | Structured Audit Logger|   |
-|   |   - Zod Schema Valid. |              | - AGENT_STARTED        |   |
-|   |   - Identity Check    |              | - TOOL_CALL / SUCCESS  |   |
-|   +-----------------------+              | - POLICY_RULE_PASSED   |   |
-|               |                          | - POLICY_RULE_FAILED   |   |
-|               v                          | - REFUND_PROCESSED     |   |
-|   +------------------------------------+ | - REFUND_DENIED        |   |
-|   |   Deterministic Policy Engine      | | - MANUAL_REVIEW        |   |
-|   |   - 12 Strict Server Rules         | +------------------------+   |
-|   |   - Rule-by-rule pass/fail audit   |              |               |
-|   |   - ₹10,000 Manual Review Boundary |              |               |
-|   +------------------------------------+              |               |
-|               |                                       |               |
-|               v                                       v               |
-|   +---------------------------------------------------------------+   |
-|   |              Prisma ORM & SQLite Database Engine              |   |
-|   |    [Customer]        [Order]        [Refund]     [AgentEvent] |   |
-|   +---------------------------------------------------------------+   |
-+-----------------------------------------------------------------------+
+ Customer (Browser)                       Admin (Evaluator Browser)
+        |                                             |
+        v                                             v
++-------------------------------+             +-------------------------------+
+|  Next.js Customer Chat UI     |             |  Admin Telemetry Dashboard    |
+|  - Progressive Chat Stream    |             |  - Real-Time Event Timeline   |
+|  - 1-Click Demo Scenarios     |             |  - 12-Rule Policy Inspector   |
+|  - INR Refund Decision Cards  |             |  - Live CRM State Explorer    |
++-------------------------------+             +-------------------------------+
+                |                                             ^
+                v                                             |
+    POST /api/chat                                    GET /api/admin/logs
+                |                                             |
+                v                                             |
++-------------------------------------------------------------+---------------+
+|                           Next.js Backend Server                            |
+|                                                                             |
+|  +-----------------------------------------------------------------------+  |
+|  |                    Raw Function-Calling Agent Loop                    |  |
+|  |  - Interprets user request & selects registered tools                 |  |
+|  |  - Bounded iteration loop (prevents infinite recursion)               |  |
+|  |  - OpenAI GPT-4o-mini / Gemini Flash / Deterministic Fallback Mode    |  |
+|  +-----------------------------------------------------------------------+  |
+|               |                                             |               |
+|               v                                             v               |
+|   +-----------------------+                    +------------------------+   |
+|   |   Backend Tool Layer  |                    | Structured Audit Logger|   |
+|   |   - Zod Schema Valid. |                    | - AGENT_STARTED        |   |
+|   |   - Session Auth Check|                    | - TOOL_CALL / SUCCESS  |   |
+|   +-----------------------+                    | - POLICY_RULE_PASSED   |   |
+|               |                                | - POLICY_RULE_FAILED   |   |
+|               v                                | - REFUND_PROCESSED     |   |
+|   +------------------------------------------+ | - REFUND_DENIED        |   |
+|   |       Deterministic Policy Engine        | | - MANUAL_REVIEW        |   |
+|   |   - 12 Strict Server Rules               | +------------------------+   |
+|   |   - Rule-by-rule pass/fail audit proofs  |              |               |
+|   |   - ₹10,000 Manual Review Boundary       |              |               |
+|   +------------------------------------------+              |               |
+|               |                                             |               |
+|               v                                             v               |
+|   +---------------------------------------------------------------------+   |
+|   |               Prisma ORM (Dual Engine Architecture)                 |   |
+|   |    Local: SQLite (`dev.db`)  |  Production: Hosted PostgreSQL       |   |
+|   |        [Customer]       [Order]       [Refund]     [AgentEvent]     |   |
+|   +---------------------------------------------------------------------+   |
++-----------------------------------------------------------------------------+
 ```
 
 ---
 
-## Key Architectural Principle: The LLM is NOT the Source of Truth
+## Core Security Invariant: The LLM is NEVER the Source of Truth
 
-> **Critical Safety Constraint:**  
-> User instructions cannot directly authorize a refund because refund execution is independently validated by server-side authorization and deterministic policy checks.
-> 
-> * **The LLM is responsible for:** Natural language understanding, identifying intent, extracting structured order IDs and return reasons, selecting registered tools, and communicating empathetically with the customer.
-> * **The Explicit Conversation State Machine is responsible for:** Tracking multi-turn conversational state (`intent`, `pendingAction`, `activeOrderId`, `returnReason`), isolating order contexts, and preventing stale parameter reuse.
-> * **The Backend Policy Engine is responsible for:** Identity authorization, order lookup, evaluating 12 deterministic policy rules, calculating refund caps, and enforcing state transitions.
-> * **Independent Validation & Atomic Transactions:** `process_refund()` executes inside an interactive database transaction (`prisma.$transaction`). It independently re-fetches records from SQLite, re-validates ownership, re-runs the 12-rule policy validator, and verifies customer confirmation before committing any financial mutation.
+> [!IMPORTANT]
+> **A user instruction or LLM output cannot directly authorize or release a refund.**  
+>
+> 1. **The LLM is responsible only for:** Natural language understanding, intent recognition, conversational empathy, and choosing tool calls.
+> 2. **The Explicit Conversation State Machine is responsible for:** Tracking multi-turn progression (`intent`, `pendingAction`, `activeOrderId`, `returnReason`), isolating order contexts, and eliminating stale parameter bleed.
+> 3. **The Deterministic Policy Engine is responsible for:** Server-side customer verification, 12-rule policy validation, refund ceiling calculations, and mandatory human escalation triggers (> ₹10,000).
+> 4. **Independent Server-Side Validation:** `process_refund` executes inside an atomic database transaction (`prisma.$transaction`). It independently re-fetches records from the database, confirms customer ownership, checks for duplicate refunds, re-runs policy evaluation, and verifies explicit customer confirmation before executing any financial mutation.
 
 ---
 
 ## Features
 
-- **Multi-Turn Stateful Support Flow:** Explicit conversation state model tracking `intent`, `pendingAction`, `activeOrderId`, and `returnReason` across requests without fragile regex sniffing.
+- **Multi-Turn Stateful Support Flow:** Explicit conversation state machine tracking `intent`, `pendingAction`, `activeOrderId`, and `returnReason` across requests without fragile regex sniffing.
 - **Mandatory Return Reason Collection:** An Order ID alone never triggers refund execution. The agent always retrieves order details and requests a structured return reason before evaluating policy.
 - **Strict Separation of Eligibility vs. Execution:** Policy check is strictly read-only. Refunds only execute after explicit customer confirmation (`yes, proceed`).
-- **Strict Order Context Isolation:** Explicit new Order IDs immediately wipe previous order context. No stale target order or cached tool result reuse (`ORD-1001` -> `ORD-1002` -> `ORD-1003`).
+- **Strict Order Context Isolation:** Explicit new Order IDs immediately wipe previous order context. No stale target order or cached tool result reuse (`ORD-1001` → `ORD-1002` → `ORD-1003`).
 - **Atomic Database Transactions:** `process_refund` validates and commits changes inside a single atomic `prisma.$transaction`, ensuring complete rollback on any policy or authorization failure.
+- **Tamper-Proof Refund Amounts:** The refund amount is derived exclusively from the trusted database order record (`txOrder.amount`) and the deterministic policy validator. Malicious requested amounts (e.g. ₹99,999) are ignored.
 - **Request ID Idempotency:** Backend request cache prevents duplicate executions or double-refund mutations from rapid double-clicks or retries.
-- **Recruiter Demo Mode:** Clean customer-facing UX with internal CRM IDs hidden by default; Demo Mode toggle enables account switching and 1-click test scenarios for evaluator review.
+- **Evaluator Demo Mode:** Clean customer-facing UX with internal CRM IDs hidden by default; Demo Mode toggle enables account switching and 1-click test scenarios for evaluator review.
 - **Strict 12-Rule Policy Engine:** Fully deterministic TypeScript evaluation returning fine-grained rule-by-rule audit proofs (`passedRules` and `failedRules`).
 - **Real-Time Admin Telemetry:** Live auto-refreshing audit timeline displaying event payloads, tool executions, and policy checks at `/admin`.
 
@@ -88,22 +98,22 @@ An enterprise-grade, autonomous Customer Support AI Agent built with Next.js App
 |---|---|---|
 | **Frontend** | Next.js 16 (App Router), React 19, TypeScript | Server and Client Components, Responsive layout |
 | **Styling** | Tailwind CSS v4, Lucide React | Clean enterprise e-commerce customer support aesthetic |
-| **Backend** | Next.js Route Handlers (`/api/chat`, `/api/admin/logs`) | REST API with idempotent request caching |
-| **AI Orchestration** | OpenAI Official SDK (`openai`) / Deterministic Engine | Native tool calling, state-machine driven orchestration |
-| **Database** | SQLite + Prisma ORM 6 | Atomic interactive transactions, relations, indexes |
-| **Validation** | Zod | Runtime schema validation for all tool inputs and API payloads |
-| **Testing** | Vitest 3 | 94 automated tests across 6 suites with 100% pass rate |
+| **Backend** | Next.js Route Handlers (`/api/chat`, `/api/admin/logs`, `/api/admin/customers`) | REST API with rate limiting and idempotent request caching |
+| **AI Orchestration** | OpenAI Official SDK (`openai`) / Deterministic Engine | Native tool calling, state-machine driven orchestration, Gemini compatible |
+| **Database** | Prisma ORM 6 (Dual SQLite / PostgreSQL support) | Atomic interactive transactions, relations, indexes |
+| **Validation** | Zod | Runtime schema validation for all tool inputs, payloads, and parameters |
+| **Testing** | Vitest 3 | 111 automated unit & integration tests + 13 HTTP E2E scenarios (100% pass rate) |
 
 ---
 
 ## The 12-Rule Strict Refund Policy
 
-Enforced server-side in `policy/refundValidator.ts`:
+Enforced server-side in [`policy/refundValidator.ts`](file:///d:/Assignment/policy/refundValidator.ts):
 
 1. **7-Day Delivery Window:** Requests must be made within 7 calendar days of delivery.
 2. **Delivery Requirement:** The order must have been delivered (`status = DELIVERED`).
 3. **Product Refundability:** Only refundable catalog items are eligible (`isRefundable = true`).
-4. **Digital Goods Exclusion:** Software licenses, digital codes, and subscriptions are non-refundable.
+4. **Digital Goods Exclusion:** Software licenses, digital codes, and subscriptions are strictly non-refundable.
 5. **Condition Eligibility:** Used products are non-refundable unless verified defective.
 6. **Defective Product Exemption:** Defective used products qualify under the manufacturing defect clause.
 7. **Duplicate Refund Prevention:** Orders already refunded (`refundStatus = REFUNDED`) cannot be refunded again.
@@ -115,9 +125,9 @@ Enforced server-side in `policy/refundValidator.ts`:
 
 ---
 
-## Agent Tools
+## Agent Backend Tools
 
-All tools are validated with Zod and log events to `AgentEvent`:
+All tools are validated with Zod schemas and log structured records to `AgentEvent`:
 
 | Tool | Parameters | Description |
 |---|---|---|
@@ -134,9 +144,9 @@ All tools are validated with Zod and log events to `AgentEvent`:
 
 ---
 
-## Mock CRM Data (15 Indian Customer Profiles)
+## Mock CRM Data (15 Customer Profiles)
 
-The database includes 15 realistic Indian customer profiles in `prisma/seed.ts`:
+The database includes 15 realistic customer profiles initialized in [`prisma/seed.ts`](file:///d:/Assignment/prisma/seed.ts):
 
 | Customer ID | Name | Order ID | Product & Amount | Test Scenario | Expected Outcome |
 |---|---|---|---|---|---|
@@ -158,10 +168,30 @@ The database includes 15 realistic Indian customer profiles in `prisma/seed.ts`:
 
 ---
 
-## Getting Started
+## Database Architecture: Dual SQLite & PostgreSQL Support
 
-### 1. Clone & Install Dependencies
+To support both **zero-friction local development** and **serverless public cloud deployments**, the application uses an automated provider synchronization script ([`scripts/prepare-prisma.js`](file:///d:/Assignment/scripts/prepare-prisma.js)):
+
+1. **Local Development (Default):**
+   - Uses zero-setup SQLite (`DATABASE_URL="file:./dev.db"`).
+   - Allows anyone cloning the repository to run `npm test` or `npm run dev` immediately without provisioning a local database server.
+2. **Production Deployment (Vercel / Cloud):**
+   - Serverless functions (AWS Lambda/Vercel) have ephemeral, read-only filesystems where local SQLite files cannot persist writes.
+   - When deploying to Vercel, attach a hosted PostgreSQL database (such as Neon, Supabase, Vercel Postgres, or Railway).
+   - `scripts/prepare-prisma.js` detects when `DATABASE_URL` starts with `postgres://` or `postgresql://`, automatically synchronizes `prisma/schema.prisma` to `provider = "postgresql"`, and generates the matching Prisma client during `npm run build` and `postinstall`.
+
+> [!CAUTION]
+> **Demo Data Initialization Safety:**
+> `npm run db:reset-demo` (`prisma/seed.ts`) drops and recreates the deterministic demo dataset. **It is never executed automatically in production startup or build scripts**, ensuring production records are never accidentally wiped.
+
+---
+
+## Getting Started Locally
+
+### 1. Clone & Install
 ```bash
+git clone https://github.com/Chinmay1112/ai-customer-support-refund-agent.git
+cd ai-customer-support-refund-agent
 npm install
 ```
 
@@ -169,42 +199,44 @@ npm install
 ```bash
 cp .env.example .env
 ```
-*(Optional: Add your `OPENAI_API_KEY` to test with live GPT-4o-mini. If left blank, the app runs in deterministic simulation mode.)*
+*(Optional: Add your `OPENAI_API_KEY` or `GEMINI_API_KEY`. If left blank, the agent runs in deterministic simulation mode where all 9 tools, policies, and database mutations work seamlessly.)*
 
-### 3. Initialize & Seed SQLite Database
+### 3. Initialize Local SQLite Database
 ```bash
-npx prisma db push
+npm run db:push
 npm run db:reset-demo
 ```
-> **Safe Reset Any Time:** Run `npm run db:reset-demo` to cleanly wipe and reseed all 15 Indian customers, 17 realistic e-commerce orders, and reset all event logs to a pristine state.
 
-### 4. Run Development Server
+### 4. Start Development Server
 ```bash
 npm run dev
 ```
-Open **[http://localhost:3000](http://localhost:3000)** for Customer Support Chat and **[http://localhost:3000/admin](http://localhost:3000/admin)** for Admin Telemetry.
+- Customer Chat: **[http://localhost:3000](http://localhost:3000)**
+- Admin Audit Dashboard: **[http://localhost:3000/admin](http://localhost:3000/admin)**
 
 ---
 
-## Testing
+## Automated Test Suite
 
-### Run Unit & Integration Tests (Vitest)
+### Run All Unit & Integration Tests (111 Tests)
 ```bash
 npm test
 ```
-Runs **94 automated tests** with **100% pass rate** across 6 test suites:
-- **`tests/invariants.test.ts` (10 tests):** Hard invariant safety assertions (Invariants 1 through 10: reason required, approval required, confirmation required, ownership verified, duplicate prevented, status read-only, order ID non-authorizing, context isolation, nonsense rejection, UI bypass defense).
+Runs **111 automated tests** with **100% pass rate** across 8 test suites:
+- **`tests/security_audit.test.ts` (15 tests):** Penetration tests covering prompt injection, SQLi, XSS, payload limits (>4000 chars), malformed input, direct refund attempts without session authorization, missing return reason, missing confirmation, cross-customer spoofing, wrong order access, fake amount tampering, duplicate refund rejection, and admin endpoint security.
+- **`tests/invariants.test.ts` (10 tests):** Hard invariant assertions (Invariants 1 through 10: reason required, approval required, confirmation required, ownership verified, duplicate prevented, status read-only, order ID non-authorizing, context isolation, nonsense rejection, UI bypass defense).
 - **`tests/mandatory_matrix.test.ts` (17 tests):** Comprehensive test matrix covering scenarios A through Q.
-- **`tests/mandatory_20.test.ts` (26 tests):** Complete edge cases and multi-turn conversational transitions.
+- **`tests/mandatory_20.test.ts` (26 tests):** Edge cases and multi-turn conversational transitions.
 - **`tests/intent.test.ts` (19 tests):** Intent classification for greetings, courtesy, capabilities, and deterministic order ID extraction.
 - **`tests/tools.test.ts` (12 tests):** Atomic interactive transactions, duplicate prevention, cross-account authorization rejection, high-value manual review thresholding.
+- **`tests/order_switching.test.ts` (2 tests):** Context switching across `ORD-1001` → `ORD-1002` → `ORD-1003` → `ORD-1004` without stale data leakage.
 - **`tests/policy.test.ts` (10 tests):** All 12 deterministic refund policy rules and boundaries.
 
-### Run End-to-End Scenario Suite
+### Run End-to-End HTTP Scenario Suite
 ```bash
 npx tsx scripts/test-e2e.ts
 ```
-Exercises **13 comprehensive scenarios (A through M)** against the live HTTP API including multi-turn conversational flows, edge cases, and safety assertions.
+Exercises **13 comprehensive scenarios (A through M)** against the running HTTP server, verifying full multi-turn dialogs, policy evaluations, and refund database mutations.
 
 ### Run Linter & Production Build
 ```bash
@@ -214,45 +246,46 @@ npm run build
 
 ---
 
-## Demo Walkthrough (7–10 Minutes)
+## Deployment to Vercel (Public Production)
 
-1. **Step 1: Eligible Refund (1 min)**
-   - Select **Aarav Sharma (CUST-001)**.
-   - Click the prompt chip **"Eligible Refund (ORD-1001)"**.
-   - Observe tool executions (`get_customer` -> `get_order` -> `check_refund_eligibility` -> `process_refund`).
-   - Note the green **APPROVE** decision card with ₹1,999.00 and Refund ID (`REF-1001-xxxx`).
-2. **Step 2: Outside 7-Day Window (1 min)**
-   - Switch persona to **Priya Patel (CUST-002)**.
-   - Click **"Outside Window (ORD-1002)"**.
-   - Observe policy denial: Delivered 14 days ago (> 7-day limit).
-3. **Step 3: High-Value Manual Review (1 min)**
-   - Switch persona to **Sunita Rao (CUST-008)**.
-   - Click **"High-Value Review (ORD-1008)"**.
-   - Observe that the TV (₹48,990) meets physical criteria but triggers **MANUAL_REVIEW** (ticket `REV-xxxxxx`).
-4. **Step 4: Edge Cases (2 min)**
-   - Test **Digital Product (ORD-1004)** -> Denied under Rule 4.
-   - Test **Already Refunded (ORD-1005)** -> Duplicate prevention enforced under Rule 7.
-   - Test **Defective Product (ORD-1006)** -> Approved under Rule 6 exemption.
-5. **Step 5: Admin Audit Dashboard (2 min)**
-   - Open `/admin`.
-   - Inspect live metric counters (Total Sessions, Approved, Denied, Manual Reviews).
-   - View chronological event timeline (`POLICY_CHECK`, `POLICY_RULE_PASSED`, `REFUND_PROCESSED`).
-   - Switch to the **Mock CRM** tab to inspect all 15 customer databases and orders.
+### 1. Create a Free Hosted PostgreSQL Database
+Sign up for a free PostgreSQL database on **[Neon](https://neon.tech)**, **[Supabase](https://supabase.com)**, or **Vercel Postgres**.
+Copy the direct connection string:
+```
+postgresql://user:password@ep-sample.region.neon.tech/neondb?sslmode=require
+```
 
----
+### 2. Push Schema & Seed Initial Demo Data
+From your local terminal, apply the database schema and populate the demo dataset into your cloud PostgreSQL database:
+```bash
+DATABASE_URL="postgresql://user:password@ep-sample.region.neon.tech/neondb?sslmode=require" npm run db:push
+DATABASE_URL="postgresql://user:password@ep-sample.region.neon.tech/neondb?sslmode=require" npm run db:reset-demo
+```
 
-## Security Best Practices
-
-- **Zero Client-Side Secrets:** `OPENAI_API_KEY` is loaded strictly on the server and never exposed to client bundles.
-- **Log Sanitization:** Sensitive authorization strings and API keys are redacted before writing to `AgentEvent`.
-- **Zod Parameter Guards:** Tool calls validate schemas before execution; malformed inputs produce graceful error objects rather than crashing the process.
-- **No Arbitrary Execution:** Only tools explicitly registered in `AGENT_TOOLS_DEFINITIONS` are executed.
+### 3. Deploy on Vercel
+1. Push your repository to GitHub.
+2. In the **[Vercel Dashboard](https://vercel.com)**, click **"Add New Project"** and import this repository.
+3. In **Environment Variables**, configure:
+   - `DATABASE_URL`: Your PostgreSQL connection string.
+   - `OPENAI_API_KEY`: *(Optional)* Your OpenAI API key or Gemini API key.
+   - `OPENAI_MODEL`: `gemini-flash-latest` or `gpt-4o-mini` *(Optional)*.
+   - `OPENAI_BASE_URL`: `https://generativelanguage.googleapis.com/v1beta/openai/` *(If using Gemini)*.
+4. Click **Deploy**.
+   - During build, `scripts/prepare-prisma.js` detects the PostgreSQL connection URL, automatically configures Prisma for PostgreSQL, generates the client, and builds the production Next.js bundle.
 
 ---
 
-## Future Improvements
+## Security Audit & Known Take-Home Limitations
 
-- Real CRM integrations (Salesforce, Zendesk, Freshdesk).
-- Payment gateway webhook integration (Stripe, Razorpay, Cashfree) for automated refund reversal webhooks.
-- Multi-channel voice support via OpenAI Realtime API.
-- Customer authentication via NextAuth / Clerk.
+### Security Safeguards Implemented
+- **Server-Side Authorization Authority:** Refunds cannot be triggered by LLM hallucination or modified client payloads. All 9 prerequisite checks are enforced in backend code and database transactions.
+- **Amount Tamper Protection:** The refund amount is taken directly from the database order invoice, ignoring any client or LLM suggested amount.
+- **Idempotency & Double-Click Guard:** In-memory request caching and database transaction checks prevent duplicate refund execution.
+- **Sanitized Audit Events:** Sensitive auth tokens and keys are never persisted in the `agent_events` table.
+- **Zero Committed Secrets:** `.env`, `.env*.local`, SQLite databases (`*.db`), `.next/`, and `node_modules` are excluded in `.gitignore`.
+
+### Known Take-Home Simplifications
+1. **Unauthenticated Admin Dashboard:** `/admin`, `/api/admin/logs`, and `/api/admin/customers` do not require credentials so evaluators can inspect telemetry and CRM state without friction. Production would require OAuth/SSO and role-based access control (RBAC).
+2. **In-Memory Rate Limiting:** The rate limiter uses a process-local memory store. Production multi-node clusters would use a distributed Redis or Upstash cache.
+3. **In-Memory Conversational Session Context:** Session state is maintained in server memory. Production multi-region deployments would back session state with Redis.
+4. **Header-Based Client IP:** Client IP extraction relies on `x-forwarded-for` and `x-real-ip`. In the absence of a trusted upstream reverse proxy, headers could be spoofed.
