@@ -4,7 +4,12 @@ An enterprise-grade, autonomous Customer Support AI Agent built with Next.js App
 
 ---
 
-## Architecture Diagram
+## Live Links & Demo
+
+- **Live Deployment:** [https://customeragent-eight.vercel.app/](https://customeragent-eight.vercel.app/)
+- **Admin Dashboard:** [https://customeragent-eight.vercel.app/admin](https://customeragent-eight.vercel.app/admin)
+
+---
 
 ```text
  Customer (Browser)                       Admin (Evaluator Browser)
