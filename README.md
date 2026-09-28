@@ -4,14 +4,6 @@ An enterprise-grade, autonomous Customer Support AI Agent built with Next.js App
 
 ---
 
-## Live Links & Demo
-
-- **Live Deployment:** `https://your-deployment-url.vercel.app` *(Placeholder: Add your Vercel URL upon deployment)*
-- **Demo Video Walkthrough:** `https://loom.com/share/your-video-id` *(Placeholder: Add your Loom/YouTube video link)*
-- **Admin Dashboard:** `/admin` *(Inspect live audit logs, CRM state, and policy telemetry)*
-
----
-
 ## Architecture Diagram
 
 ```text
