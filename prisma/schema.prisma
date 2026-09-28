@@ -1,0 +1,77 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  phone     String
+  createdAt DateTime @default(now())
+
+  orders  Order[]
+  refunds Refund[]
+
+  @@map("customers")
+}
+
+model Order {
+  id              String    @id
+  customerId      String
+  productName     String
+  productCategory String
+  amount          Float
+  purchaseDate    DateTime
+  deliveryDate    DateTime?
+  status          String    @default("DELIVERED") // DELIVERED, PROCESSING, SHIPPED, CANCELLED
+  isRefundable    Boolean   @default(true)
+  isDefective     Boolean   @default(false)
+  condition       String    @default("UNOPENED") // UNOPENED, OPENED_UNUSED, USED, DAMAGED
+  refundStatus    String    @default("NONE") // NONE, PENDING_REVIEW, REFUNDED, DENIED
+  createdAt       DateTime  @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  refund   Refund?
+
+  @@index([customerId])
+  @@map("orders")
+}
+
+model Refund {
+  id         String   @id @default(cuid())
+  orderId    String   @unique
+  customerId String
+  amount     Float
+  status     String   @default("APPROVED") // APPROVED, DENIED, MANUAL_REVIEW
+  reason     String
+  createdAt  DateTime @default(now())
+
+  customer Customer @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  order    Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([customerId])
+  @@index([orderId])
+  @@map("refunds")
+}
+
+model AgentEvent {
+  id        String   @id @default(cuid())
+  sessionId String
+  type      String   // AGENT_STARTED, TOOL_CALL, TOOL_SUCCESS, TOOL_ERROR, POLICY_CHECK, POLICY_RULE_PASSED, POLICY_RULE_FAILED, REFUND_PROCESSED, REFUND_DENIED, MANUAL_REVIEW_CREATED, AGENT_COMPLETED, AGENT_ERROR
+  toolName  String?
+  status    String   @default("INFO") // SUCCESS, FAILED, INFO, WARNING
+  input     String?
+  output    String?
+  message   String
+  metadata  String?
+  createdAt DateTime @default(now())
+
+  @@index([sessionId])
+  @@index([createdAt])
+  @@map("agent_events")
+}
