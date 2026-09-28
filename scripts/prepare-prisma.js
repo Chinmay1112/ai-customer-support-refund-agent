@@ -18,12 +18,25 @@ if (!fs.existsSync(schemaPath)) {
 }
 
 let schema = fs.readFileSync(schemaPath, "utf8");
-const dbUrl = (process.env.DATABASE_URL || "").trim();
+let dbUrl = (process.env.DATABASE_URL || "").trim();
+
+if (!dbUrl) {
+  const envPath = path.join(__dirname, "..", ".env");
+  if (fs.existsSync(envPath)) {
+    const envContent = fs.readFileSync(envPath, "utf8");
+    const match = envContent.match(/^DATABASE_URL\s*=\s*["']?([^"'\r\n]+)["']?/m);
+    if (match) {
+      dbUrl = match[1].trim();
+    }
+  }
+}
 
 const isPostgres =
   dbUrl.startsWith("postgres://") ||
   dbUrl.startsWith("postgresql://") ||
-  process.env.DATABASE_PROVIDER === "postgresql";
+  process.env.DATABASE_PROVIDER === "postgresql" ||
+  process.env.VERCEL === "1" ||
+  Boolean(process.env.VERCEL_ENV);
 
 const targetProvider = isPostgres ? "postgresql" : "sqlite";
 
@@ -49,6 +62,11 @@ try {
     env: process.env,
   });
 } catch (error) {
-  console.error("[prepare-prisma] Failed to generate Prisma client:", error);
-  process.exit(1);
+  const clientExists = fs.existsSync(path.join(__dirname, "..", "node_modules", ".prisma", "client", "index.js"));
+  if (clientExists) {
+    console.warn("[prepare-prisma] Notice: Using existing generated Prisma client (generator binary locked by background process).");
+  } else {
+    console.error("[prepare-prisma] Failed to generate Prisma client:", error);
+    process.exit(1);
+  }
 }

@@ -597,7 +597,7 @@ export async function executeBackendTool(
             });
 
             return { refund: createdRefund, policyResult, order: txOrder };
-          });
+          }, { maxWait: 10000, timeout: 20000 });
 
           // Update session context state to COMPLETED
           updateSessionContext(sessionId, {
